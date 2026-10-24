@@ -1,198 +1,161 @@
-import React, { useState, useEffect } from 'react';
+import { FormEvent } from "react";
+import { LIMITS, Setup, shuffle, validateSetup } from "@/lib/ladder";
 
-interface AmidakujiInputFormProps {
-  startPoints: string[];
-  endPoints: string[];
-  solve: boolean;
-  onSubmit: (startPoints: string[], endPoints: string[], minRungs: number) => void;
-  onSolve: () => void;
-  setStartPoints: React.Dispatch<React.SetStateAction<string[]>>;
-  setEndPoints: React.Dispatch<React.SetStateAction<string[]>>;
+interface Props {
+  setup: Setup;
+  onChange: (setup: Setup) => void;
+  onGenerate: () => void;
+  hasDraw: boolean;
 }
 
-const AmidakujiInputForm: React.FC<AmidakujiInputFormProps> = ({
-  startPoints,
-  endPoints,
-  solve,
-  onSubmit,
-  onSolve,
-  setStartPoints,
-  setEndPoints
-}) => {
-  const [pointsCount, setPointsCount] = useState<number>(startPoints.length);
-  const [minRungs, setMinRungs] = useState<number>(2);
+export default function AmidakujiInputForm({
+  setup,
+  onChange,
+  onGenerate,
+  hasDraw,
+}: Props) {
+  const error = validateSetup(setup);
 
-  useEffect(() => {
-    setStartPoints(prev => {
-      const newPoints = Array(pointsCount).fill('').map((_, idx) => prev[idx] || `Input ${idx + 1}`);
-      return newPoints;
+  function resize(count: number) {
+    onChange({
+      ...setup,
+      startPoints: Array.from(
+        { length: count },
+        (_, i) => setup.startPoints[i] ?? `Input ${i + 1}`,
+      ),
+      endPoints: Array.from(
+        { length: count },
+        (_, i) => setup.endPoints[i] ?? `Output ${i + 1}`,
+      ),
     });
-    setEndPoints(prev => {
-      const newPoints = Array(pointsCount).fill('').map((_, idx) => prev[idx] || `Output ${idx + 1}`);
-      return newPoints;
-    });
-  }, [pointsCount, setStartPoints, setEndPoints]);
+  }
 
-  const handlePointsCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const count = parseInt(e.target.value, 10);
-    setPointsCount(count);
-  };
-
-  const handleMinRungsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const min = parseInt(e.target.value, 10);
-    setMinRungs(min);
-  };
-
-  const handleStartPointChange = (index: number, value: string) => {
-    const newStartPoints = [...startPoints];
-    newStartPoints[index] = value;
-    setStartPoints(newStartPoints);
-  };
-
-  const handleEndPointChange = (index: number, value: string) => {
-    const newEndPoints = [...endPoints];
-    newEndPoints[index] = value;
-    setEndPoints(newEndPoints);
-  };
-
-  const handleShuffleStartPoints = () => {
-    const shuffled = [...startPoints].sort(() => Math.random() - 0.5);
-    setStartPoints(shuffled);
-  };
-
-  const handleShuffleEndPoints = () => {
-    const shuffled = [...endPoints].sort(() => Math.random() - 0.5);
-    setEndPoints(shuffled);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(startPoints, endPoints, minRungs);
-  };
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!error) onGenerate();
+  }
 
   return (
-    <form onSubmit={handleSubmit} className='space-y-4 max-w-7xl'>
-      <div>
-        <label className='flex flex-col'>
-          <span className='text-sm'>Number of points</span>
-          <input
-            type="number"
-            value={pointsCount}
-            onChange={handlePointsCountChange}
-            min="2"
-            className='p-2 w-fit'
-          />
+    <form
+      onSubmit={submit}
+      className="setup-panel"
+      aria-labelledby="setup-title"
+    >
+      <div className="section-heading">
+        <h2 id="setup-title">Set up your draw</h2>
+        <p>One participant. One outcome. Let the ladder connect them.</p>
+      </div>
+      <div className="settings-row">
+        <label htmlFor="count">
+          Participants
+          <select
+            id="count"
+            value={setup.startPoints.length}
+            onChange={(event) => resize(Number(event.target.value))}
+          >
+            {Array.from({ length: LIMITS.maxPlayers - 1 }, (_, i) => i + 2).map(
+              (count) => (
+                <option key={count}>{count}</option>
+              ),
+            )}
+          </select>
+        </label>
+        <label htmlFor="rungs">
+          Minimum rungs
+          <select
+            id="rungs"
+            aria-describedby="rungs-help"
+            value={setup.minRungs}
+            onChange={(event) =>
+              onChange({ ...setup, minRungs: Number(event.target.value) })
+            }
+          >
+            {Array.from({ length: LIMITS.maxRungs }, (_, i) => i + 1).map(
+              (count) => (
+                <option key={count}>{count}</option>
+              ),
+            )}
+          </select>
         </label>
       </div>
-      <div className='space-y-4'>
-        <label className='flex flex-col'>
-          <span className='text-sm'>Minimum rungs per column</span>
-          <input
-            type="number"
-            value={minRungs}
-            onChange={handleMinRungsChange}
-            min="1"
-            className='p-2 w-fit'
-          />
-        </label>
-      </div>
-      <div className='space-y-1'>
-        <div className='flex items-center gap-x-2'>
-          <h3 className='text-sm'>Start Points</h3>
-          <button type='button' onClick={handleShuffleStartPoints}>
-            <span className='sr-only'>Shuffle inputs</span>
-            <ShuffleSVGIcon />
+      <p id="rungs-help" className="field-help">
+        Rungs connect neighboring columns. Add more for longer paths.
+      </p>
+      <div className="entry-headings">
+        <div>
+          <h3>Start points</h3>
+          <button
+            className="text-button"
+            type="button"
+            aria-label="Shuffle start points"
+            onClick={() =>
+              onChange({ ...setup, startPoints: shuffle(setup.startPoints) })
+            }
+          >
+            Shuffle
           </button>
         </div>
-        <div className='grid gap-2 w-full sm:grid-cols-2 lg:grid-cols-4 lg:max-w-4xl'>
-          {startPoints.map((point, index) => (
-            <input
-              key={index}
-              type="text"
-              value={point}
-              onChange={(e) => handleStartPointChange(index, e.target.value)}
-              placeholder={`Start ${index + 1}`}
-              className='p-2'
-            />
-          ))}
-        </div>
-      </div>
-      <div className='space-y-1'>
-        <div className='flex items-center gap-x-2'>
-          <h3 className='text-sm'>End Points</h3>
-          <button type='button' onClick={handleShuffleEndPoints}>
-            <span className='sr-only'>Shuffle outputs</span>
-            <ShuffleSVGIcon />
+        <div>
+          <h3>End points</h3>
+          <button
+            className="text-button"
+            type="button"
+            aria-label="Shuffle end points"
+            onClick={() =>
+              onChange({ ...setup, endPoints: shuffle(setup.endPoints) })
+            }
+          >
+            Shuffle
           </button>
         </div>
-        <div className='grid gap-2 w-full sm:grid-cols-2 lg:grid-cols-4 lg:max-w-4xl'>
-          {endPoints.map((point, index) => (
-            <input
-              key={index}
-              type="text"
-              value={point}
-              onChange={(e) => handleEndPointChange(index, e.target.value)}
-              placeholder={`End ${index + 1}`}
-              className='p-2'
-            />
-          ))}
-        </div>
       </div>
-      <div className='pt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:*:col-span-1'>
-        <button type="submit" className='bg-indigo-500 text-white min-w-32 px-6 py-2 rounded'>
-          Generate
-        </button>
-        <button type='button' onClick={onSolve} className='bg-gray-500 text-white min-w-32 px-6 py-2 rounded flex items-center justify-center gap-x-2'>
-          <span>{!solve ? 'Show' : 'Hide'} solution</span>
-          <SolutionSVGIcon />
-        </button>
+      <div className="entries">
+        {setup.startPoints.map((_, index) => (
+          <div className="entry-row" key={index}>
+            {(["startPoints", "endPoints"] as const).map((field) => (
+              <label className="entry-input" key={field}>
+                <span className="sr-only">
+                  {field === "startPoints" ? "Participant" : "Outcome"}{" "}
+                  {index + 1}
+                </span>
+                <span className="entry-number" aria-hidden="true">
+                  {index + 1}
+                </span>
+                <input
+                  required
+                  maxLength={LIMITS.labelLength}
+                  value={setup[field][index]}
+                  onChange={(event) =>
+                    onChange({
+                      ...setup,
+                      [field]: setup[field].map((label, i) =>
+                        i === index ? event.target.value : label,
+                      ),
+                    })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+        ))}
       </div>
+      <p className="field-help">These are column labels, not fixed pairings.</p>
+      {error && (
+        <p className="error-message" role="status" id="setup-error">
+          {error}
+        </p>
+      )}
+      <button
+        className="button primary generate-button"
+        type="submit"
+        disabled={Boolean(error)}
+        aria-describedby={error ? "setup-error" : undefined}
+      >
+        {hasDraw ? "Generate a new ladder" : "Generate ladder"}
+      </button>
+      <p className="field-help">
+        Changes apply only when you generate a ladder.
+      </p>
     </form>
   );
-};
-
-const ShuffleSVGIcon = () => {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      className="size-7 text-gray-400"
-      width={24}
-      height={24}
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      fill="none"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-      <path d="M18 4l3 3l-3 3" />
-      <path d="M18 20l3 -3l-3 -3" />
-      <path d="M3 7h3a5 5 0 0 1 5 5a5 5 0 0 0 5 5h5" />
-      <path d="M21 7h-5a4.978 4.978 0 0 0 -3 1m-4 8a4.984 4.984 0 0 1 -3 1h-3" />
-    </svg>
-  );
-};
-
-const SolutionSVGIcon = () => {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      className="size-7 text-gray-400"
-      width={24}
-      height={24}
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      fill="none"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
-      <path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" />
-    </svg>
-  );
-};
-
-export default AmidakujiInputForm;
+}
